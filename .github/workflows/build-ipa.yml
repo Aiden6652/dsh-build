@@ -36,6 +36,24 @@ jobs:
           brew install meson ninja lld libarchive pkg-config
           echo "PKG_CONFIG_PATH=/opt/homebrew/opt/libarchive/lib/pkgconfig:${PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
+      - name: Patch ish sys_uname buffer overflow (macOS 15 hardened strcpy)
+        run: |
+          python3 - <<'PY'
+          p = "ish-arm64/kernel/uname.c"
+          s = open(p).read()
+          s = s.replace('strcpy(uts->system, "Linux");', 'snprintf(uts->system, sizeof(uts->system), "Linux");')
+          s = s.replace('strcpy(uts->hostname, hostname);', 'snprintf(uts->hostname, sizeof(uts->hostname), "%s", hostname);')
+          s = s.replace('strcpy(uts->release, "4.20.69-ish");', 'snprintf(uts->release, sizeof(uts->release), "4.20.69-ish");')
+          s = s.replace('strcpy(uts->arch, "aarch64");', 'snprintf(uts->arch, sizeof(uts->arch), "aarch64");')
+          s = s.replace('strcpy(uts->arch, "i686");', 'snprintf(uts->arch, sizeof(uts->arch), "i686");')
+          s = s.replace('strcpy(uts->domain, "(none)");', 'snprintf(uts->domain, sizeof(uts->domain), "(none)");')
+          open(p, "w").write(s)
+          print("patched:")
+          for line in s.splitlines():
+              if 'uts->' in line and ('snprintf' in line or 'strcpy' in line):
+                  print("  " + line.strip())
+          PY
+
       - name: Build iSH-ARM64 emulator
         run: |
           make emulator
