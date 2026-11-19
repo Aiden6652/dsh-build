@@ -1,0 +1,39 @@
+name: Release DSH IPA from artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      src_run:
+        description: 'Run ID that produced the DSH-adhoc-ipa artifact'
+        required: true
+        default: '44531977044'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download IPA artifact from source run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SRC_RUN: ${{ github.event.inputs.src_run }}
+        run: |
+          gh run download "$SRC_RUN" --repo Aiden6652/dsh-build --name DSH-adhoc-ipa --dir downloaded
+          ls -lh downloaded/
+          cp downloaded/DSH-adhoc.ipa /tmp/DSH-adhoc.ipa 2>/dev/null || cp downloaded/DSH-adhoc.ipa /tmp/dsh.ipa
+          sha256sum /tmp/*.ipa
+
+      - name: Create Release with attached IPA
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IPA=$(ls /tmp/*.ipa | head -1)
+          TAG="dsh-ios-adhoc-$(date +%Y%m%d)"
+          gh release create "$TAG" "$IPA" \
+            --repo Aiden6652/dsh-build \
+            --title "DSHIOS $TAG (ad-hoc IPA)" \
+            --notes "DSH iOS — DeepSeek Harness on iPad/iPhone. Ad-hoc signed, sideloadable IPA. Guest: Alpine 3.21 + Node 22 + @deepseek-ai/dsh 0.1.0-rc.7. Install via SideStore / LiveContainer / PlumeImpactor. Needs DeepSeek API key. Source: everettjf/dsh-ios. Entitlements stripped (HealthKit disabled) so no developer team needed. All agent/session data stays on-device."
+          echo "Release created: $TAG"
